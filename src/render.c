@@ -1,13 +1,23 @@
 #include <ncurses.h>
 #include <string.h>
+#include <signal.h>
 
 void start_menu(void);
+
+void check_terminal_size(void);
+
+void handle_winch(int sig) {
+    (void)sig;
+    resizeterm(0, 0);
+}
 
 void start_ncurses() {
     initscr();
     noecho();
     curs_set(FALSE);
     keypad(stdscr, TRUE);
+
+    check_terminal_size();
 
     start_menu();
 }
@@ -94,4 +104,61 @@ void start_menu() {
 
     refresh();
     getch();
+}
+
+void check_terminal_size() {
+    int rows, cols;
+    const int required_rows = 40;
+    const int required_cols = 120;
+    
+    signal(SIGWINCH, handle_winch);
+    
+    while (1) {
+        getmaxyx(stdscr, rows, cols);
+        
+        if (rows >= required_rows && cols >= required_cols) {
+            break;
+        }
+        
+        clear();
+
+        int box_height = 7;
+        int box_width = 80;
+        int start_row = (rows - box_height) / 2;
+        int start_col = (cols - box_width) / 2;
+        
+        if (start_row < 0) start_row = 0;
+        if (start_col < 0) start_col = 0;
+        if (start_row + box_height >= rows) start_row = rows - box_height - 1;
+        if (start_col + box_width >= cols) start_col = cols - box_width - 1;
+        
+        box(stdscr, 0, 0);
+        
+        char warning1[] = "This game requires a 120x40 terminal size";
+        char warning2[] = "Please resize your terminal accordingly";
+        char current_size[50];
+        snprintf(current_size, sizeof(current_size), "Current size: %dx%d", cols, rows);
+        
+        mvprintw(start_row + 1, start_col + (box_width - strlen(warning1)) / 2, "%s", warning1);
+        mvprintw(start_row + 2, start_col + (box_width - strlen(current_size)) / 2, "%s", current_size);
+        mvprintw(start_row + 3, start_col + (box_width - strlen(warning2)) / 2, "%s", warning2);
+
+        refresh(); 
+
+        timeout(500);
+        int ch = getch();
+        timeout(-1);
+        
+        if (ch == ERR) {
+            endwin();
+            refresh();
+            continue;
+        }
+        
+        endwin();
+        refresh();
+    }
+    
+    clear();
+    refresh();
 }
